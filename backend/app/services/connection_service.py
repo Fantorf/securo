@@ -117,9 +117,11 @@ async def _resolve_institution(
     Matched by the provider's stable org id when it sends one, so a bank
     renamed on the provider side updates its row in place instead of minting
     a new one (review on #654); name identity is the fallback for servers
-    that only send a name. Providers without per-account hints
-    (Pluggy/Enable — one institution per connection) return None, and
-    serialization falls back to the connection's own fields.
+    that only send a name. Most Pluggy/Enable connections are one
+    institution and never send this hint (returns None, serialization falls
+    back to the connection's own fields) — the exception is a Pluggy
+    connection spanning a banking group's brokerage arm (issue #723), which
+    the provider detects and hints the same way SimpleFIN already does.
     """
     name = _clean_institution_name(acc_data.institution_name)
     if not name:
@@ -1117,6 +1119,7 @@ async def handle_oauth_callback(
             connection_id=connection.id,
             external_id=acc_data.external_id,
             name=acc_data.name,
+            display_name=institution.name if institution else None,
             masked_number=acc_data.masked_number,
             type=acc_data.type,
             balance=acc_data.balance,
@@ -1308,6 +1311,7 @@ async def _find_existing_connected_account(
     acc_data: AccountData,
     institution: Optional[Institution],
     incoming_external_ids: set[str],
+    incoming_institution_external_ids: frozenset[str] = frozenset(),
 ) -> Optional[Account]:
     """Find an existing account for incoming provider account data.
 
@@ -1347,6 +1351,29 @@ async def _find_existing_connected_account(
             candidate for candidate in candidates
             if candidate.institution_id == institution.id
         ]
+        if not matched_institution and candidates:
+            # Re-linking a bank in SimpleFIN Bridge can send it under a new
+            # conn_id, so _resolve_institution just minted a fresh row while
+            # the account still points at the old, same-named one.
+            #
+            # Only a conn_id this pull no longer carries can have been
+            # re-linked. A bank still listed under its own conn_id was not,
+            # so a same-named one arriving beside it is a second login at
+            # that bank (SimpleFIN has no account number to tell them apart,
+            # and two logins at one bank share its name). Adopting its
+            # account would point the user's existing row, display name and
+            # history at the other login's feed.
+            same_name_ids = set((await session.execute(
+                select(Institution.id).where(
+                    Institution.connection_id == connection.id,
+                    Institution.name == institution.name,
+                    Institution.external_id.not_in(incoming_institution_external_ids),
+                )
+            )).scalars().all())
+            matched_institution = [
+                candidate for candidate in candidates
+                if candidate.institution_id in same_name_ids
+            ]
         if matched_institution:
             candidates = matched_institution
         else:
@@ -1578,7 +1605,8 @@ async def _find_synced_duplicate(
 async def _cleanup_phantom_duplicates(
     session: AsyncSession,
     connection_id: uuid.UUID,
-) -> int:
+    live_external_ids: Optional[dict[uuid.UUID, set[str]]] = None,
+) -> set[uuid.UUID]:
     """Delete synced transactions that are phantom duplicates.
 
     Some providers (or sandbox data) report the same payment twice with
@@ -1591,13 +1619,25 @@ async def _cleanup_phantom_duplicates(
     within ±1 day. The pairing of the sibling is the safety signal that lets
     us distinguish the duplicate from a legitimate same-day repeat (e.g. two
     real Uber rides for the same fare).
+
+    ``live_external_ids`` maps an account id to the transaction ids the
+    provider returned for it in this sync. For an account in that map, a
+    sibling with a different id marks the tx as a phantom only when exactly
+    one of the two ids is still returned, which is what a re-keyed twin looks
+    like. Both ids returned means two real payments (e.g. two same-day Pix of
+    the same amount, #1038). Neither returned means the rows have left the
+    provider's fetch window, so this sync has no evidence about them, and they
+    were already checked while they were in it.
+
+    Returns the ids of the accounts that lost a row, so the caller can
+    reconcile their opening balances against what is left.
     """
     accounts_result = await session.execute(
         select(Account.id).where(Account.connection_id == connection_id)
     )
     account_ids = [row[0] for row in accounts_result.all()]
     if not account_ids:
-        return 0
+        return set()
 
     unmatched_result = await session.execute(
         select(Transaction).where(
@@ -1608,8 +1648,9 @@ async def _cleanup_phantom_duplicates(
     )
     unmatched = list(unmatched_result.scalars().all())
 
-    deleted = 0
+    touched: set[uuid.UUID] = set()
     for tx in unmatched:
+        live = (live_external_ids or {}).get(tx.account_id)
         date_lo = tx.date - timedelta(days=1)
         date_hi = tx.date + timedelta(days=1)
         sibling_result = await session.execute(
@@ -1625,15 +1666,21 @@ async def _cleanup_phantom_duplicates(
             )
         )
         for sibling in sibling_result.scalars():
+            if (
+                live is not None
+                and tx.external_id != sibling.external_id
+                and (tx.external_id in live) == (sibling.external_id in live)
+            ):
+                continue
             if token_overlap(
                 sibling.original_description or sibling.description,
                 tx.original_description or tx.description,
             ) >= 0.9:
                 await session.delete(tx)
-                deleted += 1
+                touched.add(tx.account_id)
                 break
 
-    return deleted
+    return touched
 
 
 # Finance-charge `additionalInfo` strings that Pluggy emits but which would
@@ -1962,8 +2009,14 @@ async def sync_connection(
         user_currency = user.primary_currency if user else get_settings().default_currency
         new_tx_ids: list[uuid.UUID] = []
         merged_count = 0
+        live_txn_external_ids: dict[uuid.UUID, set[str]] = {}
         accounts_data = await provider.get_accounts(credentials)
         incoming_external_ids = {acc.external_id for acc in accounts_data}
+        incoming_institution_external_ids = frozenset(
+            acc.institution_external_id
+            for acc in accounts_data
+            if acc.institution_external_id
+        )
         institution_cache: dict[str, Institution] = {}
         for acc_data in accounts_data:
             institution = await _resolve_institution(
@@ -1975,6 +2028,7 @@ async def sync_connection(
                 acc_data,
                 institution,
                 incoming_external_ids,
+                incoming_institution_external_ids,
             )
 
             if account is not None:
@@ -2026,6 +2080,10 @@ async def sync_connection(
                 # Backfills existing accounts on next sync (issue #345).
                 if institution is not None:
                     account.institution_id = institution.id
+                    # Only when the user hasn't named the account themselves —
+                    # never overwrite a manual display_name.
+                    if account.display_name is None:
+                        account.display_name = institution.name
                 if acc_data.type == "credit_card":
                     # Preserve existing CC metadata when the provider doesn't
                     # expose it. Pluggy's creditData fields (limit, close/due
@@ -2058,6 +2116,7 @@ async def sync_connection(
                     connection_id=connection.id,
                     external_id=acc_data.external_id,
                     name=acc_data.name,
+                    display_name=institution.name if institution else None,
                     masked_number=acc_data.masked_number,
                     type=acc_data.type,
                     balance=acc_data.balance,
@@ -2098,10 +2157,15 @@ async def sync_connection(
                 credentials, acc_data.external_id, since, payee_source=payee_source
             )
 
+            # Every id the provider returned, pending ones included, so the
+            # phantom cleanup still sees a pending row the filter below skips.
+            live_txn_external_ids[account.id] = {
+                txn.external_id for txn in transactions_data
+            }
             if not import_pending:
                 transactions_data = [t for t in transactions_data if t.status != "pending"]
 
-            incoming_external_ids = {txn.external_id for txn in transactions_data}
+            incoming_txn_external_ids = {txn.external_id for txn in transactions_data}
             for txn_data in transactions_data:
                 existing = await session.execute(
                     select(Transaction)
@@ -2165,7 +2229,7 @@ async def sync_connection(
                 # status, fingerprint match collapses it instead of letting
                 # both rows land.
                 synced_dup = await _find_synced_duplicate(
-                    session, account.id, txn_data, incoming_external_ids
+                    session, account.id, txn_data, incoming_txn_external_ids
                 )
                 if synced_dup:
                     if synced_dup.original_description is None:
@@ -2373,7 +2437,24 @@ async def sync_connection(
         # Clean up phantom duplicates: providers occasionally double-report the
         # same payment with different ids. Once transfer detection has paired
         # the real one, the orphan twin gets removed here.
-        await _cleanup_phantom_duplicates(session, connection.id)
+        touched_account_ids = await _cleanup_phantom_duplicates(
+            session, connection.id, live_txn_external_ids
+        )
+
+        # The opening balances above were reconciled with the phantoms still
+        # counted. Reconcile the open accounts that lost one again, so the
+        # removed amount does not stay behind in their synthetic opening
+        # transaction. Closed accounts stay out, as in the account loop.
+        if touched_account_ids:
+            await session.flush()
+            touched_accounts = await session.execute(
+                select(Account).where(
+                    Account.id.in_(touched_account_ids),
+                    Account.is_closed == False,
+                )
+            )
+            for touched_account in touched_accounts.scalars():
+                await sync_opening_balance_for_connected_account(session, touched_account)
 
         # Refresh investment holdings (brokerage, fixed income, funds,
         # etc.) when enabled for this connection. Errors here are logged but
