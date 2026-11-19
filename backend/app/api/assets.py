@@ -1,7 +1,6 @@
 import json
 import logging
 import uuid
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
@@ -14,7 +13,6 @@ from app.core.workspace_context import (
     current_workspace,
     current_writable_workspace,
 )
-from app.models.asset import ASSET_PRICE_DECIMALS
 from app.models.user import User
 from app.providers.market_price import (
     MarketPriceRateLimitedError,
@@ -28,6 +26,7 @@ from app.schemas.asset_import import (
 from app.schemas.asset import (
     AssetBuyCreate,
     AssetCreate,
+    AssetPriceRefreshResult,
     AssetRead,
     AssetTransactionCreate,
     AssetTransactionRead,
@@ -39,7 +38,6 @@ from app.schemas.asset import (
     MarketSymbolQuote,
 )
 from app.services import asset_import_service, asset_service, asset_transaction_service
-from app.services.fx_rate_service import convert_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -162,21 +160,38 @@ async def refresh_asset_price(
     # native value flagged as unconverted instead of a fake 1:1 number
     # (issue #574).
     primary_currency = ctx.user.primary_currency
-    if refreshed.currency != primary_currency and refreshed.current_value is not None:
-        converted, _ = await convert_or_none(
-            session, Decimal(str(refreshed.current_value)), refreshed.currency, primary_currency,
-            decimals=ASSET_PRICE_DECIMALS,
-        )
-        if converted is not None:
-            refreshed.current_value_primary = float(converted)
-            if refreshed.gain_loss is not None:
-                gl_converted, _ = await convert_or_none(
-                    session, Decimal(str(refreshed.gain_loss)), refreshed.currency, primary_currency,
-                    decimals=ASSET_PRICE_DECIMALS,
-                )
-                if gl_converted is not None:
-                    refreshed.gain_loss_primary = float(gl_converted)
+    if refreshed.currency != primary_currency:
+        await asset_service.stamp_primary_values(session, refreshed, primary_currency)
     return refreshed
+
+
+@router.post("/refresh-prices", response_model=AssetPriceRefreshResult)
+async def refresh_all_asset_prices(
+    ctx: WorkspaceContext = Depends(current_writable_workspace),
+    session: AsyncSession = Depends(get_async_session),
+) -> AssetPriceRefreshResult:
+    """Re-quote every market-priced asset of the current workspace (issue #778).
+
+    Same work the daily task does, on demand and narrowed to one workspace —
+    the scheduled sweep covers every tenant, so it must never be reused here
+    as-is. ``skipped`` counts holdings the provider had no price for (delisted
+    tickers, a failed per-symbol fallback); those keep their last known price.
+    """
+    summary = await asset_service.refresh_all_market_prices(
+        session, workspace_id=ctx.workspace.id
+    )
+    if summary["rate_limited"]:
+        # The service commits whatever it refreshed before the provider
+        # refused, so the counters are real: the caller refetches and can say
+        # how many prices already changed instead of losing that information.
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": "Market data provider is currently rate-limiting. Try again in a minute.",
+                **AssetPriceRefreshResult(**summary).model_dump(),
+            },
+        )
+    return AssetPriceRefreshResult(**summary)
 
 
 @router.get("", response_model=list[AssetRead])
@@ -187,25 +202,16 @@ async def list_assets(
 ):
     assets = await asset_service.get_assets(session, ctx.workspace.id, include_archived=include_archived)
     primary_currency = ctx.user.primary_currency
+    rates: dict = {}
     for asset in assets:
-        # convert_or_none leaves current_value_primary NULL when no FX rate
+        # stamp_primary_values leaves current_value_primary NULL when no FX rate
         # can be resolved, instead of stamping a fake 1:1 value. The UI
         # shows the native amount flagged as unconverted and keeps it out
         # of primary-currency totals (issue #574).
-        if asset.currency != primary_currency and asset.current_value is not None:
-            converted, _ = await convert_or_none(
-                session, Decimal(str(asset.current_value)), asset.currency, primary_currency,
-                decimals=ASSET_PRICE_DECIMALS,
+        if asset.currency != primary_currency:
+            await asset_service.stamp_primary_values(
+                session, asset, primary_currency, rates
             )
-            if converted is not None:
-                asset.current_value_primary = float(converted)
-                if asset.gain_loss is not None:
-                    gl_converted, _ = await convert_or_none(
-                        session, Decimal(str(asset.gain_loss)), asset.currency, primary_currency,
-                        decimals=ASSET_PRICE_DECIMALS,
-                    )
-                    if gl_converted is not None:
-                        asset.gain_loss_primary = float(gl_converted)
     return assets
 
 
@@ -228,12 +234,13 @@ async def portfolio_trend(
 @router.get("/transactions", response_model=list[AssetTransactionRead])
 async def list_workspace_transactions(
     ticker: str | None = Query(None, max_length=32),
-    kind: str | None = Query(None, pattern="^(buy|sell)$"),
+    kind: str | None = Query(None, pattern="^(buy|sell|split)$"),
     limit: int = Query(500, ge=1, le=2000),
     ctx: WorkspaceContext = Depends(current_workspace),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """All buy/sell transactions in the workspace — powers the Transactions tab."""
+    """All ledger entries (buys, sells and splits) in the workspace — powers the
+    Transactions tab."""
     return await asset_transaction_service.list_workspace_transactions(
         session, ctx.workspace.id, ticker=ticker, kind=kind, limit=limit
     )

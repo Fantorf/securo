@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.shared_scope import bound_workspace_id
 from app.models.group import Group, GroupMember
 from app.models.user import User
 from app.schemas.group import (
@@ -93,6 +94,8 @@ def _visible_predicate(workspace_id: uuid.UUID, user_id: uuid.UUID):
         )
         .distinct()
     )
+    if bound_workspace_id() is not None:
+        return Group.workspace_id == workspace_id
     return or_(Group.workspace_id == workspace_id, Group.id.in_(member_groups))
 
 
@@ -423,9 +426,14 @@ async def list_transactions(
     )
     txs = list(result.scalars().all())
     # Hydrate fields the TransactionRead schema expects.
+    from sqlalchemy.orm.attributes import set_committed_value
+
     for tx in txs:
         tx.attachment_count = 0
         tx.payee_name = tx.payee_entity.name if tx.payee_entity else None
+        # A linked member's row keeps its card ending in its own workspace.
+        if tx.workspace_id != workspace_id:
+            set_committed_value(tx, "card_masked_number", None)
     return txs
 
 

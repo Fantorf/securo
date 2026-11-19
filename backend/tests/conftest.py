@@ -57,6 +57,7 @@ from app.models.passkey import UserPasskey  # noqa: E402,F401
 from app.models.category import Category  # noqa: E402
 from app.models.bank_connection import BankConnection  # noqa: E402
 from app.models.account import Account  # noqa: E402
+from app.models.account_card import AccountCard  # noqa: E402,F401
 from app.models.transaction import Transaction  # noqa: E402
 from app.models.rule import Rule  # noqa: E402
 from app.models.asset import Asset  # noqa: E402,F401
@@ -504,6 +505,7 @@ async def test_transactions(
             date=dt,
             type=typ,
             source="manual",
+            currency=test_account.currency,
             created_at=datetime.now(timezone.utc),
         )
         session.add(txn)
@@ -674,7 +676,8 @@ def _mock_redis():
 @pytest.fixture(autouse=True)
 def _no_external_fx_sync():
     """Prevent tests from hitting the real OpenExchangeRates API."""
-    with patch("app.services.fx_rate_service._provider") as mock_provider:
+    with patch("app.services.fx_rate_service.OpenExchangeRatesProvider") as provider_class:
+        mock_provider = provider_class.return_value
         mock_provider.name = "test"
         mock_provider.fetch_latest = AsyncMock(return_value={})
         mock_provider.fetch_historical = AsyncMock(return_value={})
