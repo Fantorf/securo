@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import re
+import unicodedata
 import uuid
 import warnings
 import xml.etree.ElementTree as ET
@@ -32,7 +33,7 @@ from app.services.credit_card_service import apply_effective_date
 from app.services.category_service import get_assignable_category_ids
 from app.services.rule_engine import apply_rule_actions, evaluate_conditions, merge_notes
 from app.services.rule_service import apply_rules_to_transaction, preview_rules_for_transaction
-from app.services.fx_rate_service import stamp_primary_amount
+from app.services.fx_rate_service import stamp_account_amount, stamp_primary_amount
 from app.services.payee_service import get_or_create_payee
 from app.services.transaction_match_service import find_unique_transaction_match
 
@@ -688,6 +689,12 @@ def detect_csv_columns(content: bytes) -> list[str]:
     return [f.strip() for f in (reader.fieldnames or []) if f and f.strip()]
 
 
+def _fold_header(name: str) -> str:
+    """A lower-cased CSV header with its diacritics stripped ("Descrição" -> "descricao")."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).lower()
+
+
 def parse_csv(
     content: bytes,
     date_format: str | None = None,
@@ -739,10 +746,20 @@ def parse_csv(
         if field in CSV_MAPPABLE_FIELDS and value and value.strip()
     }
 
+    # Bank exports write the Portuguese headers with accents ("Descrição",
+    # "Histórico", "Lançamento"); the candidates are plain ASCII, so fall back
+    # to the header with its diacritics stripped, keeping the header as is.
+    # An exact name wins: a file holding both "Descrição" and "descricao" must
+    # keep reading the plain column, as it did before the folded match.
+    folded_fieldnames = {_fold_header(f): f for f in reversed(fieldnames)}
+
     def find_col(candidates):
         for c in candidates:
             if c in fieldnames:
                 return c
+        for c in candidates:
+            if c in folded_fieldnames:
+                return folded_fieldnames[c]
         return None
 
     def resolve_col(field, candidates):
@@ -1320,7 +1337,8 @@ async def import_transactions(
             # the account's own (#1073): the row takes the charged currency.
             currency_changed = placeholder.currency != txn_currency
             placeholder.currency = txn_currency
-            if placeholder.amount != txn_data.amount or txn_data.fx_rate or currency_changed:
+            amount_changed = placeholder.amount != txn_data.amount
+            if amount_changed or txn_data.fx_rate or currency_changed:
                 # Matched under a tolerance, or the file says what the charge
                 # cost in the primary currency: the row now stands for what was
                 # actually charged, not for what the bill expected.
@@ -1334,11 +1352,21 @@ async def import_transactions(
                     # converted" until a rate lands.
                     placeholder.amount_primary = None
                     placeholder.fx_rate_used = None
+                    placeholder.amount_account = None
+                    placeholder.amount_account_source = None
+                # The file's rate is a reporting value: the account amount
+                # moves only with the charge itself.
+                charge_changed = amount_changed or currency_changed
                 if txn_data.fx_rate:
                     placeholder.fx_rate_used = txn_data.fx_rate
                     placeholder.amount_primary = txn_data.amount * txn_data.fx_rate
+                    await stamp_account_amount(
+                        session, placeholder, recompute=charge_changed
+                    )
                 else:
-                    await stamp_primary_amount(session, user_id, placeholder)
+                    await stamp_primary_amount(
+                        session, user_id, placeholder, restamp_account=charge_changed
+                    )
                 # A split placeholder keeps its split, resized.
                 await category_line_service.rescale_lines(session, placeholder, expected_amount)
             placeholder_split = (
@@ -1416,7 +1444,9 @@ async def import_transactions(
             if incoming.category_id is None and not incoming.has_category_lines:
                 incoming.category_id = csv_category_id
 
-        if not txn_data.fx_rate:
+        if txn_data.fx_rate:
+            await stamp_account_amount(session, incoming)
+        else:
             await stamp_primary_amount(session, user_id, incoming)
 
         imported += 1

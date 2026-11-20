@@ -1006,6 +1006,31 @@
     "ignoredShow": "Показывать",
     "ignoredHide": "Скрывать",
     "ignoredHiddenValue": "Скрыты",
+    "flagged": "Отмечена",
+    "flagAction": "Отметить",
+    "unflagAction": "Снять отметку",
+    "flagSuccess": "Транзакция отмечена",
+    "unflagSuccess": "Отметка снята",
+    "flagFilterAll": "Все отмеченные",
+    "flagFilterOverdue": "Просроченные",
+    "flagFilterSoon": "На этой неделе",
+    "flagOverdue": "Просрочено",
+    "flagDueOn": "Срок: {{date}}",
+    "flagReminder": "Напоминание",
+    "flagReminderHint": "необязательно",
+    "flagRemindOn": "Напомнить",
+    "flagPickDate": "Выбрать дату",
+    "flagClearDate": "Очистить дату",
+    "flagNote": "Заметка",
+    "flagNotePlaceholder": "например, жду возврат",
+    "bulkFlagSuccess": "Отмечено транзакций: {{count}}",
+    "bulkUnflagSuccess": "Снято отметок: {{count}}",
+    "flagOverdueCount": "Просроченных отметок: {{count}}",
+    "flagPreset": {
+      "tomorrow": "Завтра",
+      "nextWeek": "Через неделю",
+      "nextMonth": "Через месяц"
+    },
     "statusCleared": "Проведена",
     "sortAsc": "Сортировка по возрастанию",
     "sortDesc": "Сортировка по убыванию",
@@ -1543,6 +1568,8 @@
     "copyPreviewCount": "Категорий для копирования: {{count}}",
     "copyPreviewTotal": "Итого к копированию: {{amount}}",
     "copyPreviewEmpty": "В выбранном месяце нет бюджетов для копирования.",
+    "copyPreviewAllExist": "У всех категорий исходного месяца уже есть бюджет в {{month}}. Выберите замену, чтобы скопировать суммы или применить корректировку.",
+    "copyPreviewNoChange": "Все бюджеты исходного месяца уже имеют эти суммы в {{month}}.",
     "copyPreviewError": "Не удалось загрузить исходный месяц.",
     "copyAmountTooLarge": "Скорректированная сумма превышает лимит бюджета. Уменьшите процентную корректировку.",
     "copyConfirm": "Копировать бюджеты",
@@ -2416,7 +2443,39 @@
     "statementViewTransactions": "Показать транзакции",
     "statementUncategorizedIncome": "Доходы без категории",
     "statementUncategorizedExpense": "Расходы без категории",
-    "statementToggleGroup": "Показать категории группы {{name}}"
+    "statementToggleGroup": "Показать категории группы {{name}}",
+    "pluginReport": {
+      "total": {
+        "expenses": "Всего потрачено",
+        "income": "Всего получено",
+        "net": "Итог"
+      },
+      "none": {
+        "category": "Без категории",
+        "category_group": "Без группы",
+        "payee": "Без получателя",
+        "account": "Без счёта",
+        "month": "Без даты"
+      },
+      "groupBy": {
+        "category": "Категория",
+        "category_group": "Группа",
+        "payee": "Получатель",
+        "account": "Счёт",
+        "month": "Месяц"
+      },
+      "measure": {
+        "expenses": "Расходы",
+        "income": "Доходы",
+        "net": "Итог"
+      },
+      "share": "Доля",
+      "computed": "Рассчитано плагином",
+      "totalRow": "Итого",
+      "page": "Страница {{page}} из {{pages}}",
+      "previousPage": "Предыдущая страница",
+      "nextPage": "Следующая страница"
+    }
   },
   "payees": {
     "noPayeeFound": "Получатель не найден.",
@@ -2577,6 +2636,7 @@
     "download": "Скачать",
     "closePreview": "Закрыть просмотр",
     "remove": "Удалить",
+    "refresh": "Обновить",
     "invalidAmount": "Введите корректную сумму, например {{example}}."
   },
   "splitGroups": {
@@ -2740,7 +2800,96 @@
     "passwordPlaceholder": "Оставьте пустым для копии без шифрования",
     "passwordTooShort": "Используйте не менее {{min}} символов",
     "encryptionNote": "Архив шифруется алгоритмом AES-256 и открывается любым архиватором. Securo не хранит этот пароль и не сможет восстановить файл без него.",
-    "successEncrypted": "Зашифрованная резервная копия успешно загружена"
+    "successEncrypted": "Зашифрованная резервная копия успешно загружена",
+    "restoreSuccess": "Backup restored to {{name}}",
+    "runSuccess": "Backup created",
+    "uploadDescription": "Upload a Securo backup ZIP, preview it, then restore to a new workspace by default.",
+    "menu": "Backups",
+    "storedDescription": "Backups created by “Run backup” or the schedule for this workspace.",
+    "content": {
+      "configuration": "Configuration only",
+      "data": "Data only",
+      "both": "Configuration and data"
+    },
+    "counts": {
+      "empty": "0 элементов",
+      "total": "Всего: {{count}}",
+      "accounts_one": "{{count}} счёт",
+      "accounts_few": "{{count}} счёта",
+      "accounts_many": "{{count}} счетов",
+      "accounts_other": "{{count}} счетов",
+      "transactions_one": "{{count}} транзакция",
+      "transactions_few": "{{count}} транзакции",
+      "transactions_many": "{{count}} транзакций",
+      "transactions_other": "{{count}} транзакций",
+      "categories_one": "{{count}} категория",
+      "categories_few": "{{count}} категории",
+      "categories_many": "{{count}} категорий",
+      "categories_other": "{{count}} категорий",
+      "rules_one": "{{count}} правило",
+      "rules_few": "{{count}} правила",
+      "rules_many": "{{count}} правил",
+      "rules_other": "{{count}} правил",
+      "budgets_one": "{{count}} бюджет",
+      "budgets_few": "{{count}} бюджета",
+      "budgets_many": "{{count}} бюджетов",
+      "budgets_other": "{{count}} бюджетов",
+      "goals_one": "{{count}} цель",
+      "goals_few": "{{count}} цели",
+      "goals_many": "{{count}} целей",
+      "goals_other": "{{count}} целей"
+    },
+    "configSaved": "Backup settings saved",
+    "runTitle": "Backup now",
+    "contentLabel": "Backup content",
+    "restore": "Restore",
+    "previewError": "Could not read backup file",
+    "configError": "Could not save backup settings",
+    "configLoadError": "Не удалось загрузить настройки резервного копирования.",
+    "invalidRetention": "Введите положительное целое число.",
+    "unknownWorkspace": "Unknown workspace",
+    "running": "Running…",
+    "emptyStored": "No stored backups yet. Run one now or enable the schedule.",
+    "listError": "Не удалось загрузить сохранённые резервные копии.",
+    "downloadNow": "Download ZIP",
+    "subtitle": "Export, schedule, and restore workspace backups without auth or bank credentials.",
+    "restoreMode": {
+      "current_workspace": "Current workspace",
+      "new_workspace": "New workspace"
+    },
+    "confirmRestoreLabel": "Type RESTORE to replace the current workspace",
+    "runDescription": "Create a managed backup on the server or download a ZIP directly.",
+    "restoreModeLabel": "Restore target",
+    "uploadFileLabel": "Backup ZIP file",
+    "lastRun": "Last run",
+    "noFileSelected": "No file selected",
+    "weekly": "Weekly",
+    "runNow": "Run backup",
+    "chooseFile": "Choose file",
+    "previewing": "Reading backup…",
+    "safeBadge": "Secrets excluded",
+    "download": "Download",
+    "storedTitle": "Stored backups",
+    "noFile": "Choose a backup ZIP first.",
+    "daily": "Daily",
+    "destinationHint": "Сохранённые резервные копии будут храниться постоянно, только если /app/data/backups подключён как том (BACKUP_HOST_PATH в Docker Compose или persistence.backups.enabled в Helm).",
+    "noBackupSelected": "Choose a stored backup first.",
+    "currentWorkspaceWarning": "This destructive option replaces matching data in the current workspace inside one transaction. New workspace restore is safer.",
+    "uploadTitle": "Restore from upload",
+    "retentionDays": "Max age in days",
+    "restoring": "Restoring…",
+    "scheduleTitle": "Schedule and retention",
+    "retentionCount": "Keep latest",
+    "nextRun": "Next run",
+    "secretNotice": "Backups intentionally exclude user auth data, passkeys, provider credentials, and bank tokens.",
+    "scheduleLabel": "Schedule",
+    "restoreError": "Could not restore backup",
+    "scheduleDescription": "Фоновые процессы ежечасно проверяют включённые расписания. Чтобы запланированные ZIP-файлы сохранялись, в развёртывании необходимо включить постоянное хранилище резервных копий.",
+    "optional": "Optional",
+    "runError": "Could not create backup",
+    "title": "Backups",
+    "restoreUpload": "Restore uploaded backup",
+    "restoreStoredTitle": "Restore stored backup"
   },
   "update": {
     "title": "Обновление сервера",
@@ -3889,9 +4038,22 @@
       "none": "Нет счетов к оплате.",
       "noClient": "Без клиента"
     },
+    "flagged": {
+      "title": "Отмеченные транзакции",
+      "hint": "То, что вы отметили, чтобы вернуться, сначала просроченные напоминания.",
+      "none": "Ничего не отмечено.",
+      "overdue": "Просрочено: {{count}}",
+      "dueSoon": "На этой неделе: {{count}}",
+      "noDate": "Без даты",
+      "more": "Ещё отмеченных: {{count}}"
+    },
     "recurringRevenue": {
       "title": "Регулярная выручка",
       "hint": "Сколько приносят регулярные счета в месяц и что недавно потеряно."
     }
+  },
+  "offline": {
+    "title": "Сервер недоступен",
+    "description": "Вы не в сети или Securo перезапускается. Ваши данные в безопасности, ничего не изменено. Мы автоматически переподключимся, как только сервер ответит."
   }
 }

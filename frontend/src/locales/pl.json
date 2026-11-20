@@ -1015,6 +1015,31 @@
     "ignoredShow": "Pokaż",
     "ignoredHide": "Ukryj",
     "ignoredHiddenValue": "Ukryte",
+    "flagged": "Oznaczona",
+    "flagAction": "Oznacz",
+    "unflagAction": "Usuń oznaczenie",
+    "flagSuccess": "Transakcja oznaczona",
+    "unflagSuccess": "Oznaczenie usunięte",
+    "flagFilterAll": "Wszystkie oznaczone",
+    "flagFilterOverdue": "Zaległe",
+    "flagFilterSoon": "W tym tygodniu",
+    "flagOverdue": "Zaległa",
+    "flagDueOn": "Na {{date}}",
+    "flagReminder": "Przypomnienie",
+    "flagReminderHint": "opcjonalne",
+    "flagRemindOn": "Przypomnij",
+    "flagPickDate": "Wybierz datę",
+    "flagClearDate": "Wyczyść datę",
+    "flagNote": "Notatka",
+    "flagNotePlaceholder": "np. czekam na zwrot",
+    "bulkFlagSuccess": "Oznaczone transakcje: {{count}}",
+    "bulkUnflagSuccess": "Usunięte oznaczenia: {{count}}",
+    "flagOverdueCount": "Zaległe oznaczenia: {{count}}",
+    "flagPreset": {
+      "tomorrow": "Jutro",
+      "nextWeek": "Za tydzień",
+      "nextMonth": "Za miesiąc"
+    },
     "statusCleared": "Rozliczona",
     "sortAsc": "Sortuj rosnąco",
     "sortDesc": "Sortuj malejąco",
@@ -1579,6 +1604,8 @@
     "copyPreviewCount": "Kategorie do skopiowania: {{count}}",
     "copyPreviewTotal": "Suma do skopiowania: {{amount}}",
     "copyPreviewEmpty": "Wybrany miesiąc nie ma budżetów do skopiowania.",
+    "copyPreviewAllExist": "Wszystkie kategorie z miesiąca źródłowego mają już budżet w {{month}}. Wybierz zastąpienie, aby skopiować kwoty lub zastosować korektę.",
+    "copyPreviewNoChange": "Wszystkie budżety z miesiąca źródłowego mają już te kwoty w {{month}}.",
     "copyPreviewError": "Nie udało się wczytać miesiąca źródłowego.",
     "copyAmountTooLarge": "Skorygowana kwota przekracza limit budżetu. Zmniejsz korektę procentową.",
     "copyConfirm": "Kopiuj budżety",
@@ -2488,7 +2515,39 @@
     "statementViewTransactions": "Pokaż transakcje",
     "statementUncategorizedIncome": "Przychody bez kategorii",
     "statementUncategorizedExpense": "Wydatki bez kategorii",
-    "statementToggleGroup": "Pokaż kategorie w {{name}}"
+    "statementToggleGroup": "Pokaż kategorie w {{name}}",
+    "pluginReport": {
+      "total": {
+        "expenses": "Wydano łącznie",
+        "income": "Otrzymano łącznie",
+        "net": "Saldo"
+      },
+      "none": {
+        "category": "Bez kategorii",
+        "category_group": "Bez grupy",
+        "payee": "Bez odbiorcy",
+        "account": "Bez konta",
+        "month": "Bez daty"
+      },
+      "groupBy": {
+        "category": "Kategoria",
+        "category_group": "Grupa",
+        "payee": "Odbiorca",
+        "account": "Konto",
+        "month": "Miesiąc"
+      },
+      "measure": {
+        "expenses": "Wydatki",
+        "income": "Przychody",
+        "net": "Saldo"
+      },
+      "share": "Udział",
+      "computed": "Obliczone przez wtyczkę",
+      "totalRow": "Suma",
+      "page": "Strona {{page}} z {{pages}}",
+      "previousPage": "Poprzednia strona",
+      "nextPage": "Następna strona"
+    }
   },
   "payees": {
     "noPayeeFound": "Nie znaleziono odbiorcy.",
@@ -2658,6 +2717,7 @@
     "download": "Pobierz",
     "closePreview": "Zamknij podgląd",
     "remove": "Usuń",
+    "refresh": "Odśwież",
     "invalidAmount": "Podaj prawidłową kwotę, na przykład {{example}}."
   },
   "splitGroups": {
@@ -2827,7 +2887,96 @@
     "passwordPlaceholder": "Zostaw puste, aby pobrać kopię bez szyfrowania",
     "passwordTooShort": "Użyj co najmniej {{min}} znaków",
     "encryptionNote": "Archiwum jest szyfrowane AES-256 i otwiera się w dowolnym programie do archiwów. Securo nie przechowuje tego hasła i bez niego nie odzyska pliku.",
-    "successEncrypted": "Pomyślnie pobrano zaszyfrowaną kopię zapasową"
+    "successEncrypted": "Pomyślnie pobrano zaszyfrowaną kopię zapasową",
+    "restoreSuccess": "Backup restored to {{name}}",
+    "runSuccess": "Backup created",
+    "uploadDescription": "Upload a Securo backup ZIP, preview it, then restore to a new workspace by default.",
+    "menu": "Backups",
+    "storedDescription": "Backups created by “Run backup” or the schedule for this workspace.",
+    "content": {
+      "configuration": "Configuration only",
+      "data": "Data only",
+      "both": "Configuration and data"
+    },
+    "counts": {
+      "empty": "0 elementów",
+      "total": "Łącznie: {{count}}",
+      "accounts_one": "{{count}} konto",
+      "accounts_few": "{{count}} konta",
+      "accounts_many": "{{count}} kont",
+      "accounts_other": "{{count}} kont",
+      "transactions_one": "{{count}} transakcja",
+      "transactions_few": "{{count}} transakcje",
+      "transactions_many": "{{count}} transakcji",
+      "transactions_other": "{{count}} transakcji",
+      "categories_one": "{{count}} kategoria",
+      "categories_few": "{{count}} kategorie",
+      "categories_many": "{{count}} kategorii",
+      "categories_other": "{{count}} kategorii",
+      "rules_one": "{{count}} reguła",
+      "rules_few": "{{count}} reguły",
+      "rules_many": "{{count}} reguł",
+      "rules_other": "{{count}} reguł",
+      "budgets_one": "{{count}} budżet",
+      "budgets_few": "{{count}} budżety",
+      "budgets_many": "{{count}} budżetów",
+      "budgets_other": "{{count}} budżetów",
+      "goals_one": "{{count}} cel",
+      "goals_few": "{{count}} cele",
+      "goals_many": "{{count}} celów",
+      "goals_other": "{{count}} celów"
+    },
+    "configSaved": "Backup settings saved",
+    "runTitle": "Backup now",
+    "contentLabel": "Backup content",
+    "restore": "Restore",
+    "previewError": "Could not read backup file",
+    "configError": "Could not save backup settings",
+    "configLoadError": "Nie udało się wczytać ustawień kopii zapasowej.",
+    "invalidRetention": "Wprowadź dodatnią liczbę całkowitą.",
+    "unknownWorkspace": "Unknown workspace",
+    "running": "Running…",
+    "emptyStored": "No stored backups yet. Run one now or enable the schedule.",
+    "listError": "Nie udało się wczytać zapisanych kopii zapasowych.",
+    "downloadNow": "Download ZIP",
+    "subtitle": "Export, schedule, and restore workspace backups without auth or bank credentials.",
+    "restoreMode": {
+      "current_workspace": "Current workspace",
+      "new_workspace": "New workspace"
+    },
+    "confirmRestoreLabel": "Type RESTORE to replace the current workspace",
+    "runDescription": "Create a managed backup on the server or download a ZIP directly.",
+    "restoreModeLabel": "Restore target",
+    "uploadFileLabel": "Backup ZIP file",
+    "lastRun": "Last run",
+    "noFileSelected": "No file selected",
+    "weekly": "Weekly",
+    "runNow": "Run backup",
+    "chooseFile": "Choose file",
+    "previewing": "Reading backup…",
+    "safeBadge": "Secrets excluded",
+    "download": "Download",
+    "storedTitle": "Stored backups",
+    "noFile": "Choose a backup ZIP first.",
+    "daily": "Daily",
+    "destinationHint": "Przechowywane kopie zapasowe są zachowywane trwale tylko wtedy, gdy katalog /app/data/backups jest zamontowany (BACKUP_HOST_PATH w Docker Compose lub persistence.backups.enabled w Helm).",
+    "noBackupSelected": "Choose a stored backup first.",
+    "currentWorkspaceWarning": "This destructive option replaces matching data in the current workspace inside one transaction. New workspace restore is safer.",
+    "uploadTitle": "Restore from upload",
+    "retentionDays": "Max age in days",
+    "restoring": "Restoring…",
+    "scheduleTitle": "Schedule and retention",
+    "retentionCount": "Keep latest",
+    "nextRun": "Next run",
+    "secretNotice": "Backups intentionally exclude user auth data, passkeys, provider credentials, and bank tokens.",
+    "scheduleLabel": "Schedule",
+    "restoreError": "Could not restore backup",
+    "scheduleDescription": "Co godzinę procesy robocze sprawdzają włączone harmonogramy. Aby zaplanowane pliki ZIP były trwale przechowywane, wdrożenie musi mieć włączoną trwałą przestrzeń na kopie zapasowe.",
+    "optional": "Optional",
+    "runError": "Could not create backup",
+    "title": "Backups",
+    "restoreUpload": "Restore uploaded backup",
+    "restoreStoredTitle": "Restore stored backup"
   },
   "update": {
     "title": "Aktualizacja serwera",
@@ -3982,9 +4131,22 @@
       "none": "Brak faktur z bliskim terminem.",
       "noClient": "Brak klienta"
     },
+    "flagged": {
+      "title": "Oznaczone transakcje",
+      "hint": "To, co oznaczyłeś do sprawdzenia, najpierw zaległe przypomnienia.",
+      "none": "Nic nie oznaczono.",
+      "overdue": "Zaległe: {{count}}",
+      "dueSoon": "W tym tygodniu: {{count}}",
+      "noDate": "Bez daty",
+      "more": "Pozostałe oznaczone: {{count}}"
+    },
     "recurringRevenue": {
       "title": "Przychody cykliczne",
       "hint": "Ile co miesiąc przynoszą faktury cykliczne i co ostatnio utracono."
     }
+  },
+  "offline": {
+    "title": "Brak połączenia z serwerem",
+    "description": "Jesteś offline lub Securo się restartuje. Twoje dane są bezpieczne i nic nie zostało zmienione. Połączymy się ponownie automatycznie, gdy tylko serwer odpowie."
   }
 }
